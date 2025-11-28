@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # 1. Database Service
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    restart: always
+    environment:
+      # Use these credentials in your backend connection string
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongo-data:/data/db
+    expose:
+      - 27017
+
+  # 2. Backend Service (Node.js API)
+  backend:
+    build:
+      context: ./backend # Tells Docker where to find the Dockerfile
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: always
+    environment:
+      # CRITICAL: Connects to the 'mongo' service inside the Docker network
+      MONGO_URI: mongodb://user:password@mongo:27017/crud_db?authSource=admin
+      PORT: 3000
+    depends_on:
+      - mongo
+    expose:
+      - 3000
+
+  # 3. Frontend Service (Angular)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: always
+    expose:
+      - 80
+    depends_on:
+      - backend
+
+  # 4. Main Nginx Reverse Proxy (The final access point)
+  proxy:
+    image: nginx:alpine
+    container_name: nginx
+    restart: always
+    volumes:
+      # Mount the reverse proxy configuration
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    # Map host port 80 to container port 80 (the assignment requirement)
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  mongo-data: {}
